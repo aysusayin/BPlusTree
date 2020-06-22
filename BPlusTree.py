@@ -65,7 +65,11 @@ class BPlusTree:
         loc = node.children[max(i, 0)]
         # read the values in the loc of file
         val = self.__parse_fields(const.DATABASE_NAME, loc)
-        return val
+        if int(val[0]) == key:
+            return val
+        else:
+            print("Data with key %d does not exist in the database" % key)
+            return "Data with key %d does not exist in the database" % key
 
     def put(self, key_value, fields):
         # Database update - write the end of the file and get location
@@ -104,9 +108,9 @@ class BPlusTree:
     @staticmethod
     def __write_fields(key, fields, file):
         with open(file, 'ab') as f:
-            f.write(key.to_bytes(const.KEY_SIZE, byteorder='big', signed=True))
+            f.write(BPlusTree.__encode_field(key, const.KEY_SIZE))
             for field in fields:
-                f.write(BPlusTree.__double_to_bytes(field))
+                f.write(BPlusTree.__encode_field(field, const.FIELD_SIZE))
             location = f.tell() - const.RECORD_SIZE
         return location
 
@@ -116,17 +120,28 @@ class BPlusTree:
         fields = []
         with open(file, 'rb') as f:
             f.seek(pos, 0)
-            key = int.from_bytes(f.read(const.KEY_SIZE), byteorder='big')
+            key = BPlusTree.__decode_field(f.read(const.KEY_SIZE), 'int')
             for i in range(const.FIELD_NUM):
-                fields.append(BPlusTree.__bytes_to_double(f.read(const.FIELD_SIZE)))
-
+                fields.append(BPlusTree.__decode_field(f.read(const.FIELD_SIZE), const.FIELD_TYPE))
         return key, fields
 
     @staticmethod
-    def __double_to_bytes(number):
-        return bytes(str(number).strip(), 'utf-8') + b" " * (const.FIELD_SIZE - len(str(number)))
+    def __encode_field(number, size):
+        if isinstance(number, int):
+            return number.to_bytes(size, byteorder='big', signed=True)
+        else:
+            if isinstance(number, float) and number == int(number):
+                number = int(number)
+            if size - len(str(number)) < 0:
+                print('Data doesn\'t fit in the provided field size: %s\nAborting...' % str(number))
+                exit()
+            return bytes(str(number).strip(), 'utf-8') + b" " * (size - len(str(number)))
+
 
     @staticmethod
-    def __bytes_to_double(number):
-        return float(number.decode('utf-8').strip())
+    def __decode_field(number, decode_type):
+        if decode_type == 'int':
+            return int.from_bytes(number, byteorder='big')
+        else:
+            return str(number.decode('utf-8').strip())
 
